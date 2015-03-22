@@ -1,0 +1,232 @@
+    <!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>D3: Setting path fills dynamically to generate a choropleth</title>
+        <script src="http://d3js.org/d3.v3.min.js"></script>
+<!--        <script src="http://riccardoscalco.github.io/textures/textures.js"> </script>-->
+        <script src="//cdnjs.cloudflare.com/ajax/libs/topojson/1.1.0/topojson.min.js"></script>
+		<style type="text/css">
+			svg .symapFill {
+                stroke: white;
+                stroke-width: 5px;
+                stroke-linejoin: round;
+                fill: #ccc;
+            }
+            
+            svg .intBoundary {
+                stroke: black;
+                stroke-width: 0.5px;
+                stroke-dasharray: 3,3;
+                stroke-linejoin: round;
+                fill:none;
+                opacity: 1;
+            }
+            
+            svg .extBoundary {
+                stroke: black;
+                stroke-width: 1px;
+/*                stroke-dasharray: 1,2;*/
+                stroke-linejoin: round;
+                fill:none;
+                opacity: 1;
+            }
+            
+            svg text {
+                font-family: 'Courier New', Courier, 'Lucida Sans Typewriter', 'Lucida Typewriter', monospace;
+                font-weight: bold;
+                opacity: 0.85;
+                text-anchor: middle;
+		</style>
+	</head>
+	<body>
+        
+        <div id="map"></div>
+        
+        <script type = "text/javascript">
+        
+        (function() {
+          var rand, umd,
+            slice = [].slice;
+
+          rand = function() {
+            return ((Math.random().toString(36)) + "00000000000000000").replace(/[^a-z]+/g, "").slice(0, 5);
+          };
+
+          umd = function(factory) {
+            if (typeof exports === 'object') {
+              return module.exports = factory();
+            } else if (typeof define === 'function' && define.amd) {
+              return define([], factory);
+            } else {
+              return this.textures = factory();
+            }
+          };
+
+            umd(function() {
+                return {
+                    symap: function() {
+                        var background = "",
+                        xSize = 7;
+                        ySize = 11;
+                        fill = "#000000";
+                        fontSize = 10;
+                        opacity = 0.85;
+                        id = rand();
+                        text = ["O","X","A","V"];
+                        
+                        symap = function() {
+                            var corner, g, i, len, ref, results;
+                            g = this.append("defs").append("pattern").attr({
+                                    id: id,
+                                    patternUnits: "userSpaceOnUse",
+                                    width: xSize,
+                                    height: ySize * 0.65
+                                });
+                            if (background) {
+                                g.append("rect").attr({
+                                        width: xSize,
+                                        height: ySize,
+                                        fill: background
+                                    });
+                            }
+                            for(var i=0; i < text.length; i++) {
+                                g.append("text").attr({
+                                    x: Math.round(xSize / 2),
+                                    y: Math.round(ySize / 2),
+                                    "font-size": fontSize,
+                                    fill: fill,
+                                    "fill-opacity": opacity
+                                })
+                                .text(text[i]);
+                            }
+                        };
+                        symap.background = function(_) {
+                            background = _;
+                            return symap;
+                        };
+                        symap.size = function(_) {
+                            size = _;
+                            return symap;
+                        };
+                        symap.fontSize = function(_) {
+                            fontSize = _;
+                            return symap;
+                        };
+                        symap.fill = function(_) {
+                            fill = _;
+                            return symap;
+                        };
+                        symap.kerning = function(_) {
+                            kerning = _;
+                            return symap;
+                        };
+                        symap.text = function(_) {
+                            text = _;
+                            return symap;
+                        };
+                        symap.id = function(_) {
+                            if (!arguments.length) {
+                                return id;
+                            } else {
+                                id = _;
+                                return circles;
+                            }
+                        };
+                    symap.url = function() {
+                        return "url(#" + id + ")";
+                    };
+                    return symap;
+                    }
+                };
+            });
+
+            }).call(this);
+        </script>
+        
+		<script type="text/javascript">
+            
+            var margin = {top: 50, right: 50, bottom: 50, left: 50};
+            var w = 1800 - margin.left - margin.right;
+            var h = 900 - margin.top - margin.bottom;
+
+            //GEO-SETUP!
+
+            //Define projection.
+            var projection = d3.geo.mercator()
+                .center([-84.6514,37.6690]) 
+                .scale(8000)
+                .translate([w / 2, h / 2]);
+
+            //Define path generator.     
+            var path = d3.geo.path()
+                .projection(projection);
+
+            //Build map frame.
+			var svg = d3.select("#map")
+						.append("svg")
+						.attr("width", w)
+						.attr("height", h);
+
+            //Set background pattern.
+            var t = textures.symap()
+              .text("-");
+
+            svg.call(t);
+
+            svg.append("rect")
+                .style("fill", t.url())
+                .attr("width", w)
+                .attr("height", h);
+                
+//            var symbology = [[">","<"],["O","X"],["O","M","W"],["O","X","A","V"]];
+            var symbology = [[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
+            
+            d3.json('kyCountyPops.json', function(ky) {
+                
+                var counties = topojson.feature(ky, ky.objects.counties).features;
+                
+                var pop = [];
+                for (var i = 0; i < counties.length; i++) {
+                    pop[i] = counties[i].properties.population;
+                }
+            
+                var shade = d3.scale.quantize()
+                    .domain(d3.extent(pop))
+                    .range(symbology);
+            
+    
+                var map = svg.append("g").attr("class","symapFill")
+                    .selectAll("path")
+                    .data(topojson.feature(ky, ky.objects.counties).features)
+                    .enter()
+                    .append("path")
+                    .style("fill", function(d,i) {
+                        var val = shade(pop[i]);
+
+                        if (val !== undefined) {
+
+                            var t = textures.symap()
+                                .text(val)
+                                .background("white");
+
+                            svg.call(t);
+                            return t.url();
+                        }
+                    })
+                    .attr("d", path);
+                
+                var map = svg.append("g").attr("class","intBoundary")
+                    .append("path")
+                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
+                    .attr("d", path);
+                
+                var map = svg.append("g").attr("class","extBoundary")
+                    .append("path")
+                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
+                    .attr("d", path);
+            })
+			
+		</script>
+	</body>
+</html>
