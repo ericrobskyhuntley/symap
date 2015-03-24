@@ -1,23 +1,26 @@
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-		<title>D3: Setting path fills dynamically to generate a choropleth</title>
+		<title>SYMAP</title>
         <script src="http://d3js.org/d3.v3.min.js"></script>
-<!--        <script src="http://riccardoscalco.github.io/textures/textures.js"> </script>-->
-        <script src="//cdnjs.cloudflare.com/ajax/libs/topojson/1.1.0/topojson.min.js"></script>
+        <script src="http://d3js.org/topojson.v1.min.js"></script>
 		<style type="text/css">
+            
+            svg .bg {
+                pointer-events: all;
+            }
+            
 			svg .symapFill {
                 stroke: white;
-                stroke-width: 5px;
+                stroke-width: 4px;
                 stroke-linejoin: round;
-                fill: #ccc;
             }
             
             svg .intBoundary {
-                stroke: black;
+                stroke: white;
                 stroke-width: 0.5px;
-                stroke-dasharray: 3,3;
+                stroke-dasharray: 1,1.5;
                 stroke-linejoin: round;
                 fill:none;
                 opacity: 1;
@@ -25,8 +28,8 @@
             
             svg .extBoundary {
                 stroke: black;
-                stroke-width: 1px;
-/*                stroke-dasharray: 1,2;*/
+                stroke-width: 1.5px;
+                stroke-dasharray: 2,2;
                 stroke-linejoin: round;
                 fill:none;
                 opacity: 1;
@@ -34,8 +37,8 @@
             
             svg text {
                 font-family: 'Courier New', Courier, 'Lucida Sans Typewriter', 'Lucida Typewriter', monospace;
-                font-weight: bold;
-                opacity: 0.85;
+                font-weight: normal;
+                opacity: 0.9;
                 text-anchor: middle;
 		</style>
 	</head>
@@ -67,10 +70,10 @@
                 return {
                     symap: function() {
                         var background = "",
-                        xSize = 7;
-                        ySize = 11;
+                        fontSize = 5;
+                        xSize = Math.round(fontSize * 0.7);
+                        ySize = Math.round(fontSize * 1.25);
                         fill = "#000000";
-                        fontSize = 10;
                         opacity = 0.85;
                         id = rand();
                         text = ["O","X","A","V"];
@@ -146,27 +149,44 @@
         
 		<script type="text/javascript">
             
-            var margin = {top: 50, right: 50, bottom: 50, left: 50};
-            var w = 1800 - margin.left - margin.right;
-            var h = 900 - margin.top - margin.bottom;
+            var margin = {top: 0, right: 0, bottom: 0, left: 0};
+            var w = 1200 - margin.right - margin.left;
+            var h = 600 - margin.top - margin.bottom;
 
             //GEO-SETUP!
 
             //Define projection.
-            var projection = d3.geo.mercator()
-                .center([-84.6514,37.6690]) 
+            var projection = d3.geo.conicEqualArea()
+                .rotate([85.76394, 0])
+                .center([0,37.81914])
+                .parallels([36,40])
                 .scale(8000)
                 .translate([w / 2, h / 2]);
 
             //Define path generator.     
             var path = d3.geo.path()
                 .projection(projection);
+            
+            var zoom = d3.behavior.zoom()
+                .translate([0, 0])
+                .scale(1)
+                .scaleExtent([1, 8])
+                .size([w,h])
+                .on("zoom", zoomed);
 
             //Build map frame.
 			var svg = d3.select("#map")
 						.append("svg")
 						.attr("width", w)
 						.attr("height", h);
+            
+            var features = svg.append("g");
+            
+//            svg.append("rect")
+//                .attr("class", "overlay")
+//                .attr("width", w)
+//                .attr("height", h)
+//                .call(zoom);
 
             //Set background pattern.
             var t = textures.symap()
@@ -174,15 +194,22 @@
 
             svg.call(t);
 
-            svg.append("rect")
+            features.append("rect")
+                .attr("class", "bg")
                 .style("fill", t.url())
                 .attr("width", w)
-                .attr("height", h);
+                .attr("height", h)
+                .attr("opacity",0.4)
+                .call(zoom);
                 
 //            var symbology = [[">","<"],["O","X"],["O","M","W"],["O","X","A","V"]];
-            var symbology = [[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
+            var symbology = [["-"],["<",">"],["*"],["#"],[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
             
-            d3.json('kyCountyPops.json', function(ky) {
+            d3.json('kyCountyPops.json', function(error, ky) {
+                
+                if (error) return console.error(error);
+                
+                svg.call(zoom);
                 
                 var counties = topojson.feature(ky, ky.objects.counties).features;
                 
@@ -196,7 +223,7 @@
                     .range(symbology);
             
     
-                var map = svg.append("g").attr("class","symapFill")
+                features.attr("class","symapFill")
                     .selectAll("path")
                     .data(topojson.feature(ky, ky.objects.counties).features)
                     .enter()
@@ -216,16 +243,20 @@
                     })
                     .attr("d", path);
                 
-                var map = svg.append("g").attr("class","intBoundary")
-                    .append("path")
+                features.append("path")
                     .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
+                    .attr("class","intBoundary")
                     .attr("d", path);
                 
-                var map = svg.append("g").attr("class","extBoundary")
-                    .append("path")
+                features.append("path")
                     .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
+                    .attr("class","extBoundary")
                     .attr("d", path);
-            })
+            });
+            
+            function zoomed() {
+                features.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+            }
 			
 		</script>
 	</body>
