@@ -47,24 +47,47 @@
         <div id="map"></div>
         
         <script type = "text/javascript">
+//            The following code is modified from textures.js by Riccardo Scalco, licensed under
+//            the following MIT license...
+            
+//            The MIT License (MIT)
+
+//            Copyright (c) 2015 Riccardo Scalco
+
+//            Permission is hereby granted, free of charge, to any person obtaining a copy of this 
+//            software and associated documentation files (the "Software"), to deal in the Software 
+//            without restriction, including without limitation the rights to use, copy, modify, 
+//            merge, publish, distribute, sublicense, and/or sell copies of the Software, and to 
+//            permit persons to whom the Software is furnished to do so, subject to the following 
+//            conditions:
+
+//            The above copyright notice and this permission notice shall be included in all copies 
+//            or substantial portions of the Software.
+
+//            THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+//            INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR 
+//            PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE 
+//            FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
+//            OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+//            DEALINGS IN THE SOFTWARE.
         
-        (function() {
-          var rand, umd,
-            slice = [].slice;
+            (function() {
+                var rand, umd,
+                slice = [].slice;
 
-          rand = function() {
-            return ((Math.random().toString(36)) + "00000000000000000").replace(/[^a-z]+/g, "").slice(0, 5);
-          };
+                rand = function() {
+                    return ((Math.random().toString(36)) + "00000000000000000").replace(/[^a-z]+/g, "").slice(0, 5);
+                };
 
-          umd = function(factory) {
-            if (typeof exports === 'object') {
-              return module.exports = factory();
-            } else if (typeof define === 'function' && define.amd) {
-              return define([], factory);
-            } else {
-              return this.textures = factory();
-            }
-          };
+                umd = function(factory) {
+                    if (typeof exports === 'object') {
+                        return module.exports = factory();
+                    } else if (typeof define === 'function' && define.amd) {
+                        return define([], factory);
+                    } else {
+                        return this.textures = factory();
+                    }
+            };
 
             umd(function() {
                 return {
@@ -208,12 +231,13 @@
                     .attr("height", h)
                     .attr("opacity", bgOpacity)
                     .call(zoom);
-
-            var symbology = [["-"],["="],["*"],["#"],[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
+            
             // Overprinting convention drawn from Mould, R. F., and C. Wyld. 1973. “A Comparison 
             //      between Line Printer and Conventional Polaroid Camera Displays Using a Liver 
             //      Phantom, Off-Line Computer and Contour Mapping Package.” Physics in Medicine 
             //      and Biology 18 (1): 88–99.
+
+            var symbology = [["-"],["="],["*"],["#"],[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
             
             d3.json('kyCountyPops.json', function(error, ky) {
                 
