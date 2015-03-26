@@ -5,6 +5,7 @@
 		<title>SYMAP</title>
         <script src="http://d3js.org/d3.v3.min.js"></script>
         <script src="http://d3js.org/topojson.v1.min.js"></script>
+        <script src="simple_statistics.js"></script>
 		<style type="text/css">
             
             svg .bg {
@@ -38,7 +39,6 @@
             svg text {
                 font-family: 'Courier New', Courier, 'Lucida Sans Typewriter', 'Lucida Typewriter', monospace;
                 font-weight: normal;
-                opacity: 0.9;
                 text-anchor: middle;
 		</style>
 	</head>
@@ -114,6 +114,8 @@
                         };
                         symap.fontSize = function(_) {
                             fontSize = _;
+                            xSize = Math.round(fontSize * 0.7);
+                            ySize = Math.round(fontSize * 1.25);
                             return symap;
                         };
                         symap.fill = function(_) {
@@ -149,20 +151,29 @@
         
 		<script type="text/javascript">
             
-            var margin = {top: 50, right: 50, bottom: 50, left: 50};
-            var w = 1200 - margin.right - margin.left;
-            var h = 600 - margin.top - margin.bottom;
+            var margin = {top: 50, right: 50, bottom: 50, left: 50},
+                w = 1200 - margin.right - margin.left,
+                h = 600 - margin.top - margin.bottom,
+                bgOpacity = 0.4;
             
-            var panBuffer = 100;
+            //SYMAP config
+            var numClasses = 9,
+                resolution = 7;
+            
+            //Geo config
+            var mapCenter = [-85.76394,37.81914],
+                parallels = [36,40],
+                scale = 9000;
+            
 
             //GEO-SETUP!
 
             //Define projection.
             var projection = d3.geo.conicEqualArea()
-                .rotate([85.76394, 0])
-                .center([0,37.81914])
-                .parallels([36,40])
-                .scale(9000)
+                .rotate([-mapCenter[0], 0])
+                .center([0,mapCenter[1]])
+                .parallels(parallels)
+                .scale(scale)
                 .translate([w / 2, h / 2]);
 
             //Define path generator.     
@@ -172,8 +183,8 @@
             var zoom = d3.behavior.zoom()
                         .translate([0, 0])
                         .scale(1)
-                        .scaleExtent([1, 3])
-                        .size([w + panBuffer,h + panBuffer])
+                        .scaleExtent([1, 6])
+                        .size([w,h])
                         .on("zoom", zoomed);
 
             //Build map frame.
@@ -195,10 +206,14 @@
                     .style("fill", t.url())
                     .attr("width", w)
                     .attr("height", h)
-                    .attr("opacity",0.4)
+                    .attr("opacity", bgOpacity)
                     .call(zoom);
-                
-            var symbology = [["-"],["<",">"],["*"],["#"],[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
+
+            var symbology = [["-"],["="],["*"],["#"],[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
+            // Overprinting convention drawn from Mould, R. F., and C. Wyld. 1973. “A Comparison 
+            //      between Line Printer and Conventional Polaroid Camera Displays Using a Liver 
+            //      Phantom, Off-Line Computer and Contour Mapping Package.” Physics in Medicine 
+            //      and Biology 18 (1): 88–99.
             
             d3.json('kyCountyPops.json', function(error, ky) {
                 
@@ -207,29 +222,24 @@
                 svg.call(zoom);
                 
                 var counties = topojson.feature(ky, ky.objects.counties).features;
-                
-                var pop = [];
-                for (var i = 0; i < counties.length; i++) {
-                    pop[i] = counties[i].properties.population;
-                }
             
-                var shade = d3.scale.quantize()
-                    .domain(d3.extent(pop))
+                var shade = d3.scale.quantile()
+                    .domain(ss.jenks(counties.map(function(d) { return +d.properties.population }), numClasses))
                     .range(symbology);
-            
-    
+                
                 features.attr("class","symapFill")
                     .selectAll("path")
                     .data(topojson.feature(ky, ky.objects.counties).features)
                     .enter()
                     .append("path")
                     .style("fill", function(d,i) {
-                        var val = shade(pop[i]);
+                        var val = shade(d.properties.population);
 
                         if (val !== undefined) {
 
                             var t = textures.symap()
                                 .text(val)
+                                .fontSize(resolution)
                                 .background("white");
 
                             svg.call(t);
