@@ -3,9 +3,12 @@
 	<head>
 		<meta charset="utf-8">
 		<title>SYMAP</title>
-        <script src="http://d3js.org/d3.v3.min.js"></script>
-        <script src="http://d3js.org/topojson.v1.min.js"></script>
+        
+        <script src="d3.v3.min.js"></script>
+        <script src="topojson.v1.min.js"></script>
         <script src="simple_statistics.js"></script>
+        <script src="turf.min.js"></script>
+        
 		<style type="text/css">
             
             svg .bg {
@@ -15,7 +18,7 @@
 			svg .symapFill {
                 stroke: white;
                 stroke-width: 4px;
-                stroke-linejoin: round;
+                stroke-linejoin: round;+
             }
             
             svg .intBoundary {
@@ -33,6 +36,18 @@
                 stroke-dasharray: 2,2;
                 stroke-linejoin: round;
                 fill:none;
+                opacity: 1;
+            }
+            
+            svg .centroid {
+                stroke: none;
+                fill:yellow;
+                opacity: 1;
+            }
+            
+            svg .grid {
+                stroke: none;
+                fill: black;
                 opacity: 1;
             }
             
@@ -181,7 +196,7 @@
             
             //SYMAP config
             var numClasses = 9,
-                resolution = 7;
+                resolution = 5;
             
             //Geo config
             var mapCenter = [-85.76394,37.81914],
@@ -216,7 +231,7 @@
 						.attr("width", w)
 						.attr("height", h);
             
-            var features = svg.append("g");
+            var features = svg.append("g").attr("class","features");
 
             //Set background pattern.
             var t = textures.symap()
@@ -224,18 +239,18 @@
 
             svg.call(t);
 
-            features.append("rect")
-                    .attr("class", "bg")
-                    .style("fill", t.url())
-                    .attr("width", w)
-                    .attr("height", h)
-                    .attr("opacity", bgOpacity)
-                    .call(zoom);
+//            var background = features.append("rect")
+//                    .attr("class", "bg")
+//                    .style("fill", t.url())
+//                    .attr("width", w)
+//                    .attr("height", h)
+//                    .attr("opacity", bgOpacity)
+//                    .call(zoom);
             
             // Overprinting convention drawn from Mould, R. F., and C. Wyld. 1973. “A Comparison 
-            //      between Line Printer and Conventional Polaroid Camera Displays Using a Liver 
-            //      Phantom, Off-Line Computer and Contour Mapping Package.” Physics in Medicine 
-            //      and Biology 18 (1): 88–99.
+            // between Line Printer and Conventional Polaroid Camera Displays Using a Liver 
+            // Phantom, Off-Line Computer and Contour Mapping Package.” Physics in Medicine 
+            // and Biology 18 (1): 88–99.
 
             var symbology = [["-"],["="],["*"],["#"],[">","<"],["O","X"],["M","W"],["O","M","W"],["O","X","A","V"]];
             
@@ -246,41 +261,88 @@
                 svg.call(zoom);
                 
                 var counties = topojson.feature(ky, ky.objects.counties).features;
-            
+                
+                var kyExtent = d3.geo.bounds(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }));
+                var kyExtent = [kyExtent[0][0],kyExtent[0][1],kyExtent[1][0],kyExtent[1][1]];
+                var pointGrid = turf.pointGrid(kyExtent,resolution,'kilometers');
+                
+                console.log(pointGrid);
+                
+            // generate featureCollection of centroids w/ z-values for isobands input.
+                var centroids = []   
+                for(var i = 0; i < counties.length; i++) {
+                    centroids[i] = turf.point(turf.center(counties[i]).geometry.coordinates, {"z" : counties[i].properties.population});
+                }
+            // end make featureCollection
+                
+                console.log(centroids);
+                
+                var breaks = ss.jenks(counties.map(function(d) { 
+                        return +d.properties.population 
+                    }), numClasses);
+                
                 var shade = d3.scale.quantile()
-                    .domain(ss.jenks(counties.map(function(d) { return +d.properties.population }), numClasses))
+                    .domain(breaks)
                     .range(symbology);
                 
-                features.attr("class","symapFill")
-                    .selectAll("path")
-                    .data(topojson.feature(ky, ky.objects.counties).features)
+//                features.append("g").attr("class","symapFill")
+//                    .selectAll("path")
+//                    .data(topojson.feature(ky, ky.objects.counties).features)
+//                    .enter()
+//                    .append("path")
+//                    .style("fill", function(d,i) {
+//                        var val = shade(d.properties.population);
+//
+//                        if (val !== undefined) {
+//
+//                            var t = textures.symap()
+//                                .text(val)
+//                                .fontSize(resolution)
+//                                .background("white");
+//
+//                            svg.call(t);
+//                            return t.url();
+//                        }
+//                    })
+//                    .attr("d", path);
+                
+                features.append("g").attr("class","centroid")
+                    .selectAll("circle")
+                    .data(centroids)
                     .enter()
-                    .append("path")
-                    .style("fill", function(d,i) {
-                        var val = shade(d.properties.population);
-
-                        if (val !== undefined) {
-
-                            var t = textures.symap()
-                                .text(val)
-                                .fontSize(resolution)
-                                .background("white");
-
-                            svg.call(t);
-                            return t.url();
-                        }
+                    .append("circle")
+                    .attr("cx", function(d) {
+                        return projection([d.geometry.coordinates[0], d.geometry.coordinates[1]])[0];
                     })
+                    .attr("cy", function(d) {
+                        return projection([d.geometry.coordinates[0], d.geometry.coordinates[1]])[1];
+                    })
+                    .attr("r", 5)
                     .attr("d", path);
                 
-                features.append("path")
-                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
-                    .attr("class","intBoundary")
+                features.append("g").attr("class","grid")
+                    .selectAll("circle")
+                    .data(pointGrid.features)
+                    .enter()
+                    .append("circle")
+                    .attr("cx", function(d) {
+                        return projection([d.geometry.coordinates[0], d.geometry.coordinates[1]])[0];
+                    })
+                    .attr("cy", function(d) {
+                        return projection([d.geometry.coordinates[0], d.geometry.coordinates[1]])[1];
+                    })
+                    .attr("r", 1)
                     .attr("d", path);
                 
-                features.append("path")
-                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
-                    .attr("class","extBoundary")
-                    .attr("d", path);
+//                features.append("g").attr("class","intBoundary")
+//                    .append("path")
+//                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
+//                    .attr("d", path);
+//                
+//                features.append("g").attr("class","extBoundary")
+//                    .append("path")
+//                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
+//                    .attr("d", path);
             });
             
             function zoomed() {

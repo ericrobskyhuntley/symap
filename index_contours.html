@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>SYMAP</title>
+        
+        <script src="d3.v3.min.js"></script>
+        <script src="topojson.v1.min.js"></script>
+        <script src="simple_statistics.js"></script>
+        <script src="turf.min.js"></script>
+        
+		<style type="text/css">
+            
+            svg .bg {
+                pointer-events: all;
+            }
+            
+            svg .intBoundary {
+                stroke: white;
+                stroke-width: 5px;
+                fill:none;
+                opacity: 1;
+            }
+            
+            svg .extBoundary {
+                stroke: black;
+                stroke-width: 1.5px;
+                stroke-dasharray: 2,2;
+                stroke-linejoin: round;
+                fill:none;
+                opacity: 1;
+            }
+            
+            svg .grid {
+                stroke: none;
+                fill: black;
+                opacity: 1;
+            }
+            
+            svg text {
+                font-family: 'Courier New', Courier, 'Lucida Sans Typewriter', 'Lucida Typewriter', monospace;
+                font-weight: normal;
+                text-anchor: middle;
+            }
+		</style>
+	</head>
+	<body>
+        
+        <div id="map"></div>
+        
+		<script type="text/javascript">
+            
+            var margin = {top: 50, right: 50, bottom: 50, left: 50},
+                w = 1300 - margin.right - margin.left,
+                h = 850 - margin.top - margin.bottom,
+                bgOpacity = 0.4;
+            
+            //SYMAP config
+            var numClasses = 9,
+                gridRes = 7,
+                radius = 55,
+                fontSize = gridRes * 2;
+            
+            //Geo config
+            var mapCenter = [-85.76394,37.81914],
+                parallels = [36,40],
+                scale = 10000;
+            
+
+            //GEO-SETUP!
+
+            //Define projection.
+            var projection = d3.geo.conicEqualArea()
+                .rotate([-mapCenter[0], 0])
+                .center([0,mapCenter[1]])
+                .parallels(parallels)
+                .scale(scale)
+                .translate([w / 2, h / 2]);
+
+            //Define path generator.     
+            var path = d3.geo.path()
+                .projection(projection);
+            
+            var zoom = d3.behavior.zoom()
+                        .translate([0, 0])
+                        .scale(1)
+                        .scaleExtent([1, 6])
+                        .size([w,h])
+                        .on("zoom", zoomed);
+
+            //Build map frame.
+			var svg = d3.select("#map")
+						.append("svg")
+						.attr("width", w)
+						.attr("height", h);
+            
+            var features = svg.append("g").attr("class","features");
+//
+            var background = features.append("rect")
+                    .attr("class", "bg")
+                    .style("fill", t)
+                    .attr("width", w)
+                    .attr("height", h)
+                    .attr("opacity", bgOpacity)
+                    .call(zoom);
+            
+//             Overprinting convention drawn from Mould, R. F., and C. Wyld. 1973. “A Comparison 
+//             between Line Printer and Conventional Polaroid Camera Displays Using a Liver 
+//             Phantom, Off-Line Computer and Contour Mapping Package.” Physics in Medicine 
+//             and Biology 18 (1): 88–99.
+            
+            var symbology = [["-"],["="],["*"],["#"],["><"],["OX"],["MW"],["OMW"],["OXAV"]];
+            
+            d3.json('kyCountyPops.json', function(error, ky) {
+                
+                if (error) return console.error(error);
+                
+                svg.call(zoom);
+                
+                var counties = topojson.feature(ky, ky.objects.counties).features;
+                
+                var kyExtent = d3.geo.bounds(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }));
+                var kyExtent = [kyExtent[0][0],kyExtent[0][1],kyExtent[1][0],kyExtent[1][1]];
+                var grid = turf.pointGrid(kyExtent,gridRes,'kilometers');
+                
+            // generate featureCollection of centroids w/ z-values for isobands input.
+                var centroids = []   
+                for(var i = 0; i < counties.length; i++) {
+                    centroids[i] = turf.point(turf.center(counties[i]).geometry.coordinates, {"z" : counties[i].properties.population});
+                }
+            // end make featureCollection
+                var distArray = [];
+                var valueArray = [];
+                
+                function isSmallEnough(value) {
+                    return value[0]  <= radius;   
+                }
+                
+                for (i in grid.features) {
+                    for (j in centroids) {
+                        distArray[j] = [turf.distance(grid.features[i],centroids[j],'kilometers'),centroids[j].properties.z];
+                    }
+                    distArray = distArray.filter(isSmallEnough);
+                    
+                    var num = 0;
+                    var den = 0;
+                    var idw;
+                    var weight;
+                    
+                    for(feats in distArray) {
+                        
+                        var d = distArray[feats][0];
+                        
+                        if ( d > 0 && d <= (radius / 3)) {
+                            weight = 1 / d;   
+                        } else if ( d > (radius / 3) && (d <= radius)) {
+                            weight = (27 / (4 * radius)) * ((d / radius) - 1) * ((d / radius) - 1);   
+                        } else if ( d > radius) weight = 0;
+                        
+                        num += distArray[feats][1] * weight;
+                        den += weight;
+                    }
+                    
+                    idw = num/den;
+                    
+                    if (den != 0) {
+                        grid.features[i].properties.z = idw;
+                        valueArray.push(idw);
+                    } else {
+                        grid.features[i].properties.z = 0;
+                        valueArray.push(0);
+                    }
+                    
+                }
+                
+                var breaks = ss.jenks(valueArray, numClasses);
+                
+                var symbology2 = ["#f7f4f9","#e7e1ef","#d4b9da","#c994c7","#df65b0","#e7298a","#ce1256","#980043","#67001f"]
+                
+                var shade = d3.scale.quantile()
+                    .domain(breaks)
+                    .range(symbology);
+                
+                features.append("g").attr("class","symapFill")
+                    .selectAll("text")
+                    .data(grid.features)
+                    .enter()
+                    .append("text")
+                    .attr("x", function(d) {
+                        return projection([d.geometry.coordinates[0], d.geometry.coordinates[1]])[0];
+                    })
+                    .attr("y", function(d) {
+                        return projection([d.geometry.coordinates[0], d.geometry.coordinates[1]])[1];
+                    })
+                    .attr({
+                        "font-size": fontSize,
+                        fill: 'black',
+                        "fill-opacity": 1,
+                        "letter-spacing": -fontSize*0.6
+                    })
+                    .text(function(d) {
+                        return shade(d.properties.z);
+                    })
+                    .attr("d", path);
+//                
+//                features.append("g").attr("class","intBoundary")
+//                    .append("path")
+//                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
+//                    .attr("d", path);
+//
+                features.append("g").attr("class","extBoundary")
+                    .append("path")
+                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
+                    .attr("d", path);
+            });
+            
+            function zoomed() {
+                var e = d3.event;
+                var tx = Math.min(0, Math.max(e.translate[0], w - (w * e.scale)));
+                var ty = Math.min(0, Math.max(e.translate[1], h - (h * e.scale)));
+                
+                zoom.translate([tx, ty]);
+                
+                features.attr("transform", "translate(" + [tx, ty] + ")scale(" + e.scale + ")");
+            }
+			
+		</script>
+	</body>
+</html>
