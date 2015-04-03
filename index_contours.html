@@ -11,29 +11,33 @@
         
 		<style type="text/css">
             
+            body {
+                background-color: #000000;
+            }
+            
             svg .bg {
                 pointer-events: all;
             }
             
             svg .intBoundary {
                 stroke: white;
-                stroke-width: 5px;
+                stroke-width: 1px;
+                stroke-dasharray: 2,2;
                 fill:none;
-                opacity: 1;
+                opacity: 0.5;
             }
             
             svg .extBoundary {
-                stroke: black;
-                stroke-width: 1.5px;
-                stroke-dasharray: 2,2;
+                stroke: white;
+                stroke-width: 2px;
+/*                stroke-dasharray: 2,2;*/
                 stroke-linejoin: round;
                 fill:none;
-                opacity: 1;
+                opacity: 0.5;
             }
             
-            svg .grid {
-                stroke: none;
-                fill: black;
+            svg .symapFill {
+                fill: white;
                 opacity: 1;
             }
             
@@ -58,7 +62,6 @@
             //SYMAP config
             var numClasses = 9,
                 gridRes = 7,
-                radius = 55,
                 fontSize = gridRes * 2;
             
             //Geo config
@@ -96,20 +99,22 @@
             
             var features = svg.append("g").attr("class","features");
 //
-            var background = features.append("rect")
-                    .attr("class", "bg")
-                    .style("fill", t)
-                    .attr("width", w)
-                    .attr("height", h)
-                    .attr("opacity", bgOpacity)
-                    .call(zoom);
+//            var background = features.append("rect")
+//                    .attr("class", "bg")
+//                    .style("fill", t)
+//                    .attr("width", w)
+//                    .attr("height", h)
+//                    .attr("opacity", bgOpacity)
+//                    .call(zoom);
             
 //             Overprinting convention drawn from Mould, R. F., and C. Wyld. 1973. “A Comparison 
 //             between Line Printer and Conventional Polaroid Camera Displays Using a Liver 
 //             Phantom, Off-Line Computer and Contour Mapping Package.” Physics in Medicine 
 //             and Biology 18 (1): 88–99.
             
-            var symbology = [["-"],["="],["*"],["#"],["><"],["OX"],["MW"],["OMW"],["OXAV"]];
+            var textSymbology = ["-","=","*","#","><","OX","MW","OMW","OXAV"];
+            var colorSymbology = ["#f7f4f9","#e7e1ef","#d4b9da","#c994c7","#df65b0","#e7298a","#ce1256","#980043","#67001f"];
+            var opaSymbology = [0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.00];
             
             d3.json('kyCountyPops.json', function(error, ky) {
                 
@@ -120,6 +125,13 @@
                 var counties = topojson.feature(ky, ky.objects.counties).features;
                 
                 var kyExtent = d3.geo.bounds(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }));
+                
+                var kyAreaSteridian = 0;
+                for (i in counties) {
+                    kyAreaSteridian += d3.geo.area(counties[i]);
+                }
+                
+                var kyArea = kyAreaSteridian / 12.56637 * 510072000;
                 var kyExtent = [kyExtent[0][0],kyExtent[0][1],kyExtent[1][0],kyExtent[1][1]];
                 var grid = turf.pointGrid(kyExtent,gridRes,'kilometers');
                 
@@ -129,6 +141,9 @@
                     centroids[i] = turf.point(turf.center(counties[i]).geometry.coordinates, {"z" : counties[i].properties.population});
                 }
             // end make featureCollection
+                
+                radius = Math.sqrt((7/Math.PI) * (kyArea/ centroids.length));
+                
                 var distArray = [];
                 var valueArray = [];
                 
@@ -146,6 +161,11 @@
                     var den = 0;
                     var idw;
                     var weight;
+                    
+//                    Inverse Distance Weighting algorithm drawn from Shepard, Donald. 1968. “A 
+//                    Two-Dimensional Interpolation Function for Irregularly-Spaced Data.” In 
+//                    Proceedings of the Association for Computing Machinery National Conference, 
+//                    517–24.
                     
                     for(feats in distArray) {
                         
@@ -175,11 +195,17 @@
                 
                 var breaks = ss.jenks(valueArray, numClasses);
                 
-                var symbology2 = ["#f7f4f9","#e7e1ef","#d4b9da","#c994c7","#df65b0","#e7298a","#ce1256","#980043","#67001f"]
-                
-                var shade = d3.scale.quantile()
+                var textShade = d3.scale.quantile()
                     .domain(breaks)
-                    .range(symbology);
+                    .range(textSymbology);
+                
+                var colorShade = d3.scale.quantile()
+                    .domain(breaks)
+                    .range(colorSymbology);
+                
+                var opaShade = d3.scale.quantile()
+                    .domain(breaks)
+                    .range(opaSymbology);
                 
                 features.append("g").attr("class","symapFill")
                     .selectAll("text")
@@ -194,20 +220,25 @@
                     })
                     .attr({
                         "font-size": fontSize,
-                        fill: 'black',
-                        "fill-opacity": 1,
-                        "letter-spacing": -fontSize*0.6
+                        "letter-spacing": -fontSize*0.6,
+                        "fill": "#ff00ff"
+                    })
+//                    .attr("fill", function(d) {
+//                        return colorShade(d.properties.z);
+//                    })
+                    .attr("fill-opacity", function(d) {
+                        return opaShade(d.properties.z);
                     })
                     .text(function(d) {
-                        return shade(d.properties.z);
+                        return textShade(d.properties.z);
                     })
                     .attr("d", path);
-//                
-//                features.append("g").attr("class","intBoundary")
-//                    .append("path")
-//                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
-//                    .attr("d", path);
-//
+                
+                features.append("g").attr("class","intBoundary")
+                    .append("path")
+                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
+                    .attr("d", path);
+
                 features.append("g").attr("class","extBoundary")
                     .append("path")
                     .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
