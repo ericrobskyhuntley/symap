@@ -59,10 +59,10 @@
                 h = 1080 - margin.top - margin.bottom;
             
             //SYMAP config
-            var numClasses = 6,
-                gridRes = 3, //3
+            var numClasses = 5,
+                gridRes = 4, //3
                 fontSize = gridRes * 3,
-                symapMode = 'proximal',
+                symapMode = 'contour',
                 kyCounties = 'data/kyCountyPops.json',
                 otherStates = 'data/kyAdjacent.json',
                 textSymbology;
@@ -129,10 +129,8 @@
                 textSymbology = [".","'","-","=","+","X","O","O-","OX","OXAV"];
             }
             
-            d3.json(kyCounties, function(error, ky) {
-
-            if (error) return console.error(error);
-
+            d3.json(kyCounties, function(ky) {
+                
             svg.call(zoom);
 
             // LOAD COUNTIES AND PRODUCE CENTROIDS
@@ -369,11 +367,11 @@
 //                    .append("path")
 //                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
 //                    .attr("d", path);
-////
-                features.append("g").attr("class","extBoundary")
-                .append("path")
-                .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
-                .attr("d", path);
+
+//                features.append("g").attr("class","extBoundary")
+//                .append("path")
+//                .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
+//                .attr("d", path);
             });
             
 //            d3.json(otherStates, function(error, adj) {
