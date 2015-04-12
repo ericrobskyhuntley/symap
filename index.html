@@ -63,7 +63,7 @@
             var numClasses = 5,
                 gridRes = 4,
                 fontSize = gridRes * 2,
-                symapMode = "conformant",
+                symapMode = "contour",
                 kyCounties = 'data/kyCountyPops.json',
                 otherStates = 'data/kyAdjacent.json'
             
@@ -154,68 +154,114 @@
                             {"z" : counties[i].properties.population}
                         );
                     }
-                    centroids = turf.featurecollection(centroids);
+                    
+//                  Inverse Distance Weighting algorithm drawn from Shepard, Donald. 1968. “A 
+//                  Two-Dimensional Interpolation Function for Irregularly-Spaced Data.” In 
+//                  Proceedings of the Association for Computing Machinery National Conference, 
+//                  517–24.
 
                     // COMPUTE TOTAL AREA BY SUMMING COUNTIES
                     var kyArea = 0;
                     for (i in counties) kyArea += turf.area(counties[i]) / 1000000;
 
                     // COMPUTE SEARCH RADIUS (SEE SHEPARD 1968, 519)
-                    radius = Math.sqrt((7 * kyArea)/(Math.PI *  centroids.features.length));
+                    radius = Math.sqrt((7 * kyArea)/(Math.PI *  centroids.length));
 
-                    var distArray = [];
-    //                
+//                    var distArray = [];
+                    
                     for (i in grid.features) {
-                        for (j in centroids.features) {
-                            var dist = turf.distance(grid.features[i],centroids.features[j],'kilometers');
-                            distArray[j] = [dist,centroids.features[j].properties.z];
+                        for (j in centroids) {
+                            var dist = turf.distance(grid.features[i],centroids[j],'kilometers');
+                            centroids[j].properties.d = dist;
                         }
-
-                        distArray.sort(function(a,b) {
-                            return a[0] - b[0];
+                        
+                        centroids.sort(function(a,b) {
+                            return a.properties.d - b.properties.d; 
                         });
+                        
+                        var selCentroids = centroids.slice(0,7);
+                        
+                        var r = Math.ceil(selCentroids[selCentroids.length-1].properties.d);
+                        
+                        var idw;
+                        var idwNum = 0;
+                        var idwDen = 0;
+                        
+                        for (cent_i in selCentroids) {
+                            var dist_i = selCentroids[cent_i].properties.d,
+                                ix,
+                                dist_ix,
+                                iy,
+                                dist_iy,
+                                dist_j,
+                                jx,
+                                dist_jx,
+                                jy,
+                                dist_jy,
+                                cosTerm,
+                                t_i,
+                                t_iNum = 0,
+                                t_iDen = 0,
+                                s_i,
+                                s_j,
+                                w;
+                            
+                            ix = turf.point([
+                                selCentroids[cent_i].geometry.coordinates[0],
+                                grid.features[i].geometry.coordinates[1]
+                                ]);
+                            dist_ix = turf.distance(grid.features[i], ix, 'kilometers');
+                            
+                            iy = turf.point([
+                                grid.features[i].geometry.coordinates[0],
+                                selCentroids[cent_i].geometry.coordinates[1]
+                                ]);
+                            dist_iy = turf.distance(grid.features[i], iy, 'kilometers');
+                            
+                            if ( dist_i > 0 && dist_i <= (r / 3)) {
+                                s_i = 1 / dist_i;   
+                            } else if ( (dist_i > (r / 3)) && (dist_i <= Math.ceil(r))) {
+                                s_i = (27 / (4 * r)) * ((dist_i / r) - 1) * ((dist_i / r) - 1);
+                            } else s_i = 0;
+                            
+                            for (cent_j in selCentroids) {
+                                if (cent_j != cent_i) {
+                                    dist_j = selCentroids[cent_j].properties.d;
+                                    jx = turf.point([
+                                        selCentroids[cent_j].geometry.coordinates[0],
+                                        grid.features[i].geometry.coordinates[1]
+                                        ]);
+                                    dist_jx = turf.distance(grid.features[i], jx, 'kilometers');
+                                    jy = turf.point([
+                                        grid.features[i].geometry.coordinates[0],
+                                        selCentroids[cent_j].geometry.coordinates[1]
+                                        ]);
+                                    dist_jy = turf.distance(grid.features[i], jy, 'kilometers');
+                                
+                                    cosTerm = (1 - ((dist_ix * dist_jx) - (dist_iy * dist_jy)) / (dist_i * dist_j));
+                                    
 
-                        if (distArray[3][0] > radius) {
-                            distArray = distArray.slice(0,4);
-                        } else if (distArray[3][0] <= radius) {
-                            for (var k = 4; k <= 10; k++) {
-                                if (distArray[k][0] > radius) {
-                                    distArray = distArray.slice(0,k+1);
-                                    break;
+                                    if ( dist_j > 0 && dist_j <= (r / 3)) {
+                                        s_j = 1 / dist_j;   
+                                    } else if ( dist_j > (r / 3) && (dist_j <= r)) {
+                                        s_j = (27 / (4 * r)) * ((dist_j / r) - 1) * ((dist_j / r) - 1);
+                                    } else s_j = 0;
+                                    
+                                    t_iNum += s_j * cosTerm;
+                                    t_iDen += s_j;
                                 }
                             }
+                            
+                            t_i = t_iNum/t_iDen;
+                            w = s_i * s_i * (1 + t_i);
+                            
+                            idwNum += w * selCentroids[cent_i].properties.z;
+                            idwDen += w;
                         }
+                        
+                        idw = idwNum/idwDen;
 
-                        if (distArray.length > 10) {
-                            distArray = distArray.slice(0,10);   
-                        }
-
-                        var num = 0;
-                        var den = 0;
-                        var idw;
-                        var weight;
-
-    //                    Inverse Distance Weighting algorithm drawn from Shepard, Donald. 1968. “A 
-    //                    Two-Dimensional Interpolation Function for Irregularly-Spaced Data.” In 
-    //                    Proceedings of the Association for Computing Machinery National Conference, 
-    //                    517–24.
-
-                        for(feats in distArray) {
-
-                            var d = distArray[feats][0];
-
-                            if ( d > 0 && d <= (radius / 3)) {
-                                weight = 1 / d;   
-                            } else if ( d > (radius / 3) && (d <= radius)) {
-                                weight = (27 / (4 * radius)) * ((d / radius) - 1) * ((d / radius) - 1);   
-                            } else if ( d > radius) weight = 0;
-                            num += distArray[feats][1] * weight * weight;
-                            den += weight * weight;
-                        }
-
-                        idw = num/den;
-
-                        if (den != 0) {
+                        if (idwDen != 0) {
                             grid.features[i].properties.z = idw;
                             valueArray.push(idw);
                         } else {
@@ -226,6 +272,8 @@
                 }
             
                 var breaks = ss.jenks(valueArray, numClasses);
+                
+                console.log(breaks);
                 
                 var textShade = d3.scale.quantile()
                     .domain(breaks)
@@ -262,15 +310,15 @@
                     })
                     .attr("d", path);
                 
-                features.append("g").attr("class","intBoundary")
-                    .append("path")
-                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
-                    .attr("d", path);
-//
-//                features.append("g").attr("class","extBoundary")
-//                .append("path")
-//                .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
-//                .attr("d", path);
+//                features.append("g").attr("class","intBoundary")
+//                    .append("path")
+//                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
+//                    .attr("d", path);
+////
+////                features.append("g").attr("class","extBoundary")
+////                .append("path")
+////                .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
+////                .attr("d", path);
             });
             
             d3.json(otherStates, function(error, adj) {
