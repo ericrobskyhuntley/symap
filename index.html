@@ -61,8 +61,8 @@
             
             //SYMAP config
             var numClasses = 5,
-                gridRes = 4,
-                fontSize = gridRes * 2,
+                gridRes = 3, //3
+                fontSize = gridRes * 3,
                 symapMode = "contour",
                 kyCounties = 'data/kyCountyPops.json',
                 otherStates = 'data/kyAdjacent.json'
@@ -165,9 +165,7 @@
                     for (i in counties) kyArea += turf.area(counties[i]) / 1000000;
 
                     // COMPUTE SEARCH RADIUS (SEE SHEPARD 1968, 519)
-                    radius = Math.sqrt((7 * kyArea)/(Math.PI *  centroids.length));
-
-//                    var distArray = [];
+                    r = Math.sqrt((7 * kyArea)/(Math.PI *  centroids.length));
                     
                     for (i in grid.features) {
                         for (j in centroids) {
@@ -179,7 +177,18 @@
                             return a.properties.d - b.properties.d; 
                         });
                         
-                        var selCentroids = centroids.slice(0,7);
+                        if (r < centroids[3].properties.d) {
+                            selCentroids = centroids.slice(0,4);
+                        } else if (r > centroids[3].properties.d && r <= centroids[9].properties.d) {
+                            for (n in centroids) {
+                                if (r < centroids[n].properties.d) {
+                                    selCentroids = centroids.slice(0,n);   
+                                    break;
+                                }
+                            }
+                        } else {
+                            selCentroids = centroids.slice(0,10);   
+                        }
                         
                         var r = Math.ceil(selCentroids[selCentroids.length-1].properties.d);
                         
@@ -198,7 +207,7 @@
                                 dist_jx,
                                 jy,
                                 dist_jy,
-                                cosTerm,
+                                cos,
                                 t_i,
                                 t_iNum = 0,
                                 t_iDen = 0,
@@ -238,7 +247,7 @@
                                         ]);
                                     dist_jy = turf.distance(grid.features[i], jy, 'kilometers');
                                 
-                                    cosTerm = (1 - ((dist_ix * dist_jx) - (dist_iy * dist_jy)) / (dist_i * dist_j));
+                                    cos = ((dist_ix * dist_jx) - (dist_iy * dist_jy)) / (dist_i * dist_j);
                                     
 
                                     if ( dist_j > 0 && dist_j <= (r / 3)) {
@@ -247,7 +256,7 @@
                                         s_j = (27 / (4 * r)) * ((dist_j / r) - 1) * ((dist_j / r) - 1);
                                     } else s_j = 0;
                                     
-                                    t_iNum += s_j * cosTerm;
+                                    t_iNum += s_j * (1 - cos);
                                     t_iDen += s_j;
                                 }
                             }
@@ -273,8 +282,6 @@
             
                 var breaks = ss.jenks(valueArray, numClasses);
                 
-                console.log(breaks);
-                
                 var textShade = d3.scale.quantile()
                     .domain(breaks)
                     .range(textSymbology);
@@ -297,13 +304,9 @@
                     .attr({
                         "font-size": fontSize,
                         "letter-spacing": -fontSize*0.6
-//                        "fill": "#ffffff"
                     })
 //                    .attr("fill", function(d) {
 //                        return colorShade(d.properties.z);
-//                    })
-//                    .attr("fill-opacity", function(d) {
-//                        return opaShade(d.properties.z);
 //                    })
                     .text(function(d) {
                         return textShade(d.properties.z);
