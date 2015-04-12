@@ -56,16 +56,16 @@
             
             var margin = {top: 50, right: 50, bottom: 50, left: 50},
                 w = 1920 - margin.right - margin.left,
-                h = 1080 - margin.top - margin.bottom,
-                bgOpacity = 0.4;
+                h = 1080 - margin.top - margin.bottom;
             
             //SYMAP config
-            var numClasses = 5,
+            var numClasses = 6,
                 gridRes = 3, //3
                 fontSize = gridRes * 3,
-                symapMode = "contour",
+                symapMode = 'proximal',
                 kyCounties = 'data/kyCountyPops.json',
-                otherStates = 'data/kyAdjacent.json'
+                otherStates = 'data/kyAdjacent.json',
+                textSymbology;
             
             //Geo config
             var mapCenter = [-85.76394,37.81914],
@@ -102,14 +102,32 @@
             
             var features = svg.append("g").attr("class","features");
             
-//             Overprinting convention drawn from Mould, R. F., and C. Wyld. 1973. “A Comparison 
-//             between Line Printer and Conventional Polaroid Camera Displays Using a Liver 
-//             Phantom, Off-Line Computer and Contour Mapping Package.” Physics in Medicine 
-//             and Biology 18 (1): 88–99.
+//          Inverse Distance Weighting algorithm drawn from Shepard, Donald. 1968. “A 
+//          Two-Dimensional Interpolation Function for Irregularly-Spaced Data.” In 
+//          Proceedings of the Association for Computing Machinery National Conference, 
+//          517–24.
             
-            var textSymbology = ["•","•+","O•","O•+","OXAV"];
-//            var textSymbology = ["-","=","*","#","><","OX","MW","OMW","OXAV"];
-//            var colorSymbology = ["#f7f4f9","#e7e1ef","#d4b9da","#c994c7","#df65b0","#e7298a","#ce1256","#980043","#67001f"];
+            if (numClasses == 1) {
+                textSymbology = ["."];
+            } else if (numClasses == 2) {
+                textSymbology = [".", "OXAV"];
+            } else if (numClasses == 3) {
+                textSymbology = [".","O","OXAV"];
+            } else if (numClasses == 4) {
+                textSymbology = [".","+","O","OXAV"];
+            } else if (numClasses == 5) {
+                textSymbology = [".","+","O","O-","OXAV"];
+            } else if (numClasses == 6) {
+                textSymbology = [".","+","X","O-","OX","OXAV"];
+            } else if (numClasses == 7) {
+                textSymbology = [".","'","+","X","O-","OX","OXAV"];
+            } else if (numClasses == 8) {
+                textSymbology = [".","'","+","X","O","O-","OX","OXAV"];
+            } else if (numClasses == 9) {
+                textSymbology = [".","'","=","+","X","O","O-","OX","OXAV"];
+            } else if (numClasses == 10) {
+                textSymbology = [".","'","-","=","+","X","O","O-","OX","OXAV"];
+            }
             
             d3.json(kyCounties, function(error, ky) {
 
@@ -119,8 +137,6 @@
 
             // LOAD COUNTIES AND PRODUCE CENTROIDS
             var counties = topojson.feature(ky, ky.objects.counties).features;
-                
-                
                 
                 // DETERMINE BOUNDS
                 // (TAKES THE FORM [[LAT_MIN,LNG_MIN],[LAT_MAX,LNG_MAX]]
@@ -134,6 +150,7 @@
                 var grid = turf.within(turf.pointGrid(kyExtent,gridRes,'kilometers'),turf.featurecollection(counties));
                 
                 var valueArray = [];
+                var mapAttr; 
                 
                 if (symapMode == "conformant") {
                     for (i in grid.features) {
@@ -221,11 +238,19 @@
                                 ]);
                             dist_ix = turf.distance(grid.features[i], ix, 'kilometers');
                             
+                            if (selCentroids[cent_i].geometry.coordinates[0] < grid.features[i].geometry.coordinates[0]) {
+                                dist_ix = -dist_ix;   
+                            }
+                            
                             iy = turf.point([
                                 grid.features[i].geometry.coordinates[0],
                                 selCentroids[cent_i].geometry.coordinates[1]
                                 ]);
                             dist_iy = turf.distance(grid.features[i], iy, 'kilometers');
+                            
+                            if (selCentroids[cent_i].geometry.coordinates[1] < grid.features[i].geometry.coordinates[1]) {
+                                dist_iy = -dist_iy;
+                            }
                             
                             if ( dist_i > 0 && dist_i <= (r / 3)) {
                                 s_i = 1 / dist_i;   
@@ -236,18 +261,26 @@
                             for (cent_j in selCentroids) {
                                 if (cent_j != cent_i) {
                                     dist_j = selCentroids[cent_j].properties.d;
+
                                     jx = turf.point([
                                         selCentroids[cent_j].geometry.coordinates[0],
                                         grid.features[i].geometry.coordinates[1]
                                         ]);
                                     dist_jx = turf.distance(grid.features[i], jx, 'kilometers');
+                                    if (selCentroids[cent_j].geometry.coordinates[0] < grid.features[i].geometry.coordinates[0]) {
+                                        dist_jx = -dist_jx;   
+                                    }
+                                    
                                     jy = turf.point([
                                         grid.features[i].geometry.coordinates[0],
                                         selCentroids[cent_j].geometry.coordinates[1]
                                         ]);
                                     dist_jy = turf.distance(grid.features[i], jy, 'kilometers');
+                                    if (selCentroids[cent_j].geometry.coordinates[1] < grid.features[i].geometry.coordinates[1]) {
+                                        dist_jy = -dist_jy;   
+                                    }
                                 
-                                    cos = ((dist_ix * dist_jx) - (dist_iy * dist_jy)) / (dist_i * dist_j);
+                                    cos = ((dist_ix * dist_jx) + (dist_iy * dist_jy)) / (dist_i * dist_j);
                                     
 
                                     if ( dist_j > 0 && dist_j <= (r / 3)) {
@@ -278,6 +311,32 @@
                             valueArray.push(0);
                         }
                     }
+                } else if (symapMode == 'proximal') {
+                    
+                    mapAttr = 'd.properties.d';
+                
+                    var centroids = [];
+                    for(var i = 0; i < counties.length; i++) {
+                        centroids[i] = turf.point(
+                            turf.center(counties[i]).geometry.coordinates
+                        );
+                    }
+                    
+                    for (i in grid.features) {
+                        for (j in centroids) {
+                            var dist = turf.distance(grid.features[i],centroids[j],'kilometers');
+                            centroids[j].properties.d = dist;
+                        }
+                        
+                        centroids.sort(function(a,b) {
+                            return a.properties.d - b.properties.d; 
+                        });
+                        
+                        var d = centroids[0].properties.d;
+
+                        grid.features[i].properties.z = d;
+                        valueArray.push(d);
+                    }
                 }
             
                 var breaks = ss.jenks(valueArray, numClasses);
@@ -285,10 +344,6 @@
                 var textShade = d3.scale.quantile()
                     .domain(breaks)
                     .range(textSymbology);
-                
-//                var colorShade = d3.scale.quantile()
-//                    .domain(breaks)
-//                    .range(colorSymbology);
                 
                 features.append("g").attr("class","symapFill")
                     .selectAll("text")
@@ -305,9 +360,6 @@
                         "font-size": fontSize,
                         "letter-spacing": -fontSize*0.6
                     })
-//                    .attr("fill", function(d) {
-//                        return colorShade(d.properties.z);
-//                    })
                     .text(function(d) {
                         return textShade(d.properties.z);
                     })
@@ -318,27 +370,27 @@
 //                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
 //                    .attr("d", path);
 ////
-////                features.append("g").attr("class","extBoundary")
-////                .append("path")
-////                .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
-////                .attr("d", path);
+                features.append("g").attr("class","extBoundary")
+                .append("path")
+                .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
+                .attr("d", path);
             });
             
-            d3.json(otherStates, function(error, adj) {
-
-                if (error) return console.error(error);
-
-                svg.call(zoom);
-
-                var states = topojson.feature(adj, adj.objects.kyAdjacent).features;
-
-                features.append("g").attr("class","extBoundary")
-                    .selectAll("path")
-                    .data(states)
-                    .enter()
-                    .append("path")
-                    .attr("d", path);
-            });
+//            d3.json(otherStates, function(error, adj) {
+//
+//                if (error) return console.error(error);
+//
+//                svg.call(zoom);
+//
+//                var states = topojson.feature(adj, adj.objects.kyAdjacent).features;
+//
+//                features.append("g").attr("class","extBoundary")
+//                    .selectAll("path")
+//                    .data(states)
+//                    .enter()
+//                    .append("path")
+//                    .attr("d", path);
+//            });
             
             function zoomed() {
                 var e = d3.event;
