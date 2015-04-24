@@ -8,11 +8,12 @@
         <script src="js/topojson.v1.min.js"></script>
         <script src="js/simple_statistics.js"></script>
         <script src="js/turf.min.js"></script>
+        <script src="js/textures.min.js"></script>
         
 		<style type="text/css">
             
             body {
-                background-color: #ffffff;
+                background-color: #343434;
             }
             
             svg .bg {
@@ -20,7 +21,7 @@
             }
             
             svg .intBoundary {
-                stroke: #ff0000;
+                stroke: #ffffff;
                 stroke-width: 0.5px;
                 stroke-dasharray: 4,4;
                 fill:none;
@@ -28,7 +29,7 @@
             }
             
             svg .extBoundary {
-                stroke: #ff0000;
+                stroke: #ffffff;
                 stroke-width: 1px;
 /*                stroke-dasharray: 2,2;*/
                 stroke-linejoin: round;
@@ -37,7 +38,7 @@
             }
             
             svg .symapFill {
-                fill: #ff0000;
+                fill: #ffffff;
                 opacity: 1;
             }
             
@@ -54,12 +55,12 @@
         
 		<script type="text/javascript">
             
-            var margin = {top: 50, right: 50, bottom: 50, left: 50},
+            var margin = {top: 0, right: 0, bottom: 0, left: 0},
                 w = 1920 - margin.right - margin.left,
                 h = 1080 - margin.top - margin.bottom;
             
             //SYMAP config
-            var numClasses = 5,
+            var numClasses = 7,
                 gridRes = 4, //3
                 fontSize = gridRes * 3,
                 symapMode = 'contour',
@@ -129,6 +130,39 @@
                 textSymbology = [".","'","-","=","+","X","O","O-","OX","OXAV"];
             }
             
+//            d3.json(otherStates, function(error, adj) {
+//
+//                if (error) return console.error(error);
+//
+//                svg.call(zoom);
+//
+//                var states = topojson.feature(adj, adj.objects.kyAdjacent).features;
+//                
+//                var t = textures.lines()
+//                    .lighter()
+//                    .thicker()
+//                    .stroke("#ffffff");
+//                
+//                svg.call(t);
+//                
+//                features.append("g").attr("class","extBoundary")
+//                    .selectAll("path")
+//                    .data(states)
+//                    .enter()
+//                    .append("path")
+//                    .style("fill", function(d) {
+//                        if (d.properties["STATE_ABBR"]=="KY") {
+//                            return "#b22222";
+//                        } else { return t.url(); }
+//                    })
+//                    .style("fill-opacity", function(d) {
+//                        if (d.properties["STATE_ABBR"]=="KY") {
+//                            return 1;
+//                        } else { return 0.2; }
+//                    })
+//                    .attr("d", path);
+//            });
+            
             d3.json(kyCounties, function(ky) {
                 
                 svg.call(zoom);
@@ -179,6 +213,7 @@
                     r = Math.sqrt((7 * kyArea)/(Math.PI *  centroids.length));
                     
                     for (i in grid.features) {
+                        //distance of D_i from P
                         for (j in centroids) {
                             var dist = turf.distance(grid.features[i],centroids[j],'kilometers');
                             centroids[j].properties.d = dist;
@@ -224,7 +259,12 @@
                                 t_iDen = 0,
                                 s_i,
                                 s_j,
-                                w;
+                                w = selCentroids[cent_i].properties.w,
+                                A_i = selCentroids[cent_i].properties.ai,
+                                B_i = selCentroids[cent_i].properties.bi,
+                                A_iB_i = selCentroids[cent_i].properties.aibi,
+                                v,
+                                dz_i;
                             
                             ix = turf.point([
                                 selCentroids[cent_i].geometry.coordinates[0],
@@ -266,8 +306,8 @@
                                     }
                                     
                                     jy = turf.point([
-                                        grid.features[i].geometry.coordinates[0],
-                                        selCentroids[cent_j].geometry.coordinates[1]
+                                            grid.features[i].geometry.coordinates[0],
+                                            selCentroids[cent_j].geometry.coordinates[1]
                                         ]);
                                     dist_jy = turf.distance(grid.features[i], jy, 'kilometers');
                                     if (selCentroids[cent_j].geometry.coordinates[1] < grid.features[i].geometry.coordinates[1]) {
@@ -291,8 +331,102 @@
                             t_i = t_iNum/t_iDen;
                             w = s_i * s_i * (1 + t_i);
                             
-                            idwNum += w * selCentroids[cent_i].properties.z;
-                            idwDen += w;
+                            selCentroids[cent_i].properties.w = w;
+                        }
+                        
+                        for (cent_i in selCentroids) {
+                            
+                            ix = turf.point([
+                                selCentroids[cent_i].geometry.coordinates[0],
+                                grid.features[i].geometry.coordinates[1]
+                                ]);
+                            
+                            iy = turf.point([
+                                grid.features[i].geometry.coordinates[0],
+                                selCentroids[cent_i].geometry.coordinates[1]
+                                ]);
+                            
+                            A_iNum = 0,
+                            A_iDen = 0,
+                            B_iNum = 0;
+                            
+                            for (cent_j in selCentroids) {
+                                if (cent_j != cent_i) {
+                                    
+                                    var w_j = selCentroids[cent_j].properties.w;
+                                    var z_i = selCentroids[cent_i].properties.z;
+                                    var z_j = selCentroids[cent_j].properties.z;
+                                    
+                                    jx = turf.point([
+                                        selCentroids[cent_j].geometry.coordinates[0],
+                                        grid.features[i].geometry.coordinates[1]
+                                        ]);
+                                    
+                                    jy = turf.point([
+                                            grid.features[i].geometry.coordinates[0],
+                                            selCentroids[cent_j].geometry.coordinates[1]
+                                        ]);
+                                    
+                                    var jx_ix = turf.distance(jx,ix,'kilometers');
+                                    var jy_iy = turf.distance(jy,iy,'kilometers');
+                                    var distBtwCent = turf.distance(selCentroids[cent_j],selCentroids[cent_i],'kilometers');
+                                    
+                                    A_iNum += ( w_j * (z_j - z_i) * jx_ix ) / (distBtwCent * distBtwCent);
+                                    A_iDen += w_j;
+                                    B_iNum += ( w_j * (z_j - z_i) * jy_iy ) / (distBtwCent * distBtwCent);
+                                }
+                            }
+                            
+                            A_i = A_iNum / A_iDen;
+                            selCentroids[cent_i].properties.ai = A_i;
+                            B_i = B_iNum / A_iDen;
+                            selCentroids[cent_i].properties.bi = B_i;
+                            A_iB_i = (A_i * A_i) + (B_i * B_i);
+                            selCentroids[cent_i].properties.aibi = A_iB_i;
+                        }
+                        
+                        selCentroids.sort(function(a,b) {
+                            return a.properties.z - b.properties.z; 
+                        });
+                        
+                        var minZ = selCentroids[0].properties.z;
+                        var maxZ = selCentroids[selCentroids.length - 1].properties.z;
+                        
+                        selCentroids.sort(function(a,b) {
+                            return a.properties.aibi - b.properties.aibi; 
+                        });
+                        
+                        var maxaibi = selCentroids[selCentroids.length - 1].properties.aibi;
+                        
+                        v = ( 0.1 * (maxZ - minZ) ) / Math.sqrt(maxaibi);
+                        
+                        for (cent_i in selCentroids) {
+                            ix = turf.point([
+                                    selCentroids[cent_i].geometry.coordinates[0],
+                                    grid.features[i].geometry.coordinates[1]
+                                    ]);
+
+                            iy = turf.point([
+                                    grid.features[i].geometry.coordinates[0],
+                                    selCentroids[cent_i].geometry.coordinates[1]
+                                    ]);
+
+                            var P = grid.features[i];
+                            
+                            A_i = selCentroids[cent_i].properties.ai;
+                            B_i = selCentroids[cent_i].properties.bi;
+                            
+                            dist_x = turf.distance(P, ix, 'kilometers');
+                            dist_y = turf.distance(P, iy, 'kilometers');
+                            dist = selCentroids[cent_i].properties.d;
+                            var w_i = selCentroids[cent_i].properties.w;
+                            z = selCentroids[cent_i].properties.z;
+                            
+                            dz_i = ((A_i * dist_x) + (B_i * dist_y)) * (v / (v + dist));
+                            
+                            idwNum += w_i * (z + dz_i);
+                            idwDen += w_i;
+                            
                         }
                         
                         idw = idwNum/idwDen;
@@ -359,32 +493,16 @@
                     })
                     .attr("d", path);
                 
-//                features.append("g").attr("class","intBoundary")
-//                    .append("path")
-//                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
-//                    .attr("d", path);
+                features.append("g").attr("class","intBoundary")
+                    .append("path")
+                    .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a !== b; }))
+                    .attr("d", path);
 
 //                features.append("g").attr("class","extBoundary")
 //                .append("path")
 //                .datum(topojson.mesh(ky, ky.objects.counties, function(a, b) { return a === b; }))
 //                .attr("d", path);
             });
-            
-//            d3.json(otherStates, function(error, adj) {
-//
-//                if (error) return console.error(error);
-//
-//                svg.call(zoom);
-//
-//                var states = topojson.feature(adj, adj.objects.kyAdjacent).features;
-//
-//                features.append("g").attr("class","extBoundary")
-//                    .selectAll("path")
-//                    .data(states)
-//                    .enter()
-//                    .append("path")
-//                    .attr("d", path);
-//            });
             
             function zoomed() {
                 var e = d3.event;
