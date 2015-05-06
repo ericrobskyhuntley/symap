@@ -56,8 +56,8 @@
 		<script type="text/javascript">
             
             var margin = {top: 0, right: 0, bottom: 0, left: 0},
-                w = 1920 - margin.right - margin.left,
-                h = 1080 - margin.top - margin.bottom;
+                w = 1200 - margin.right - margin.left,
+                h = 650 - margin.top - margin.bottom;
             
             //SYMAP config
             var numClasses = 7,
@@ -71,7 +71,7 @@
             //Geo config
             var mapCenter = [-85.76394,37.81914],
                 parallels = [36,40],
-                scale = 15000;
+                scale = 11000;
             
 
             //GEO-SETUP!
@@ -130,38 +130,38 @@
                 textSymbology = [".","'","-","=","+","X","O","O-","OX","OXAV"];
             }
             
-//            d3.json(otherStates, function(error, adj) {
-//
-//                if (error) return console.error(error);
-//
-//                svg.call(zoom);
-//
-//                var states = topojson.feature(adj, adj.objects.kyAdjacent).features;
-//                
-//                var t = textures.lines()
-//                    .lighter()
-//                    .thicker()
-//                    .stroke("#ffffff");
-//                
-//                svg.call(t);
-//                
-//                features.append("g").attr("class","extBoundary")
-//                    .selectAll("path")
-//                    .data(states)
-//                    .enter()
-//                    .append("path")
-//                    .style("fill", function(d) {
-//                        if (d.properties["STATE_ABBR"]=="KY") {
-//                            return "#b22222";
-//                        } else { return t.url(); }
-//                    })
-//                    .style("fill-opacity", function(d) {
-//                        if (d.properties["STATE_ABBR"]=="KY") {
-//                            return 1;
-//                        } else { return 0.2; }
-//                    })
-//                    .attr("d", path);
-//            });
+            d3.json(otherStates, function(error, adj) {
+
+                if (error) return console.error(error);
+
+                svg.call(zoom);
+
+                var states = topojson.feature(adj, adj.objects.kyAdjacent).features;
+                
+                var t = textures.lines()
+                    .lighter()
+                    .thicker()
+                    .stroke("#ffffff");
+                
+                svg.call(t);
+                
+                features.append("g").attr("class","extBoundary")
+                    .selectAll("path")
+                    .data(states)
+                    .enter()
+                    .append("path")
+                    .style("fill", function(d) {
+                        if (d.properties["STATE_ABBR"]=="KY") {
+                            return "#b22222";
+                        } else { return t.url(); }
+                    })
+                    .style("fill-opacity", function(d) {
+                        if (d.properties["STATE_ABBR"]=="KY") {
+                            return 0.4;
+                        } else { return 0.2; }
+                    })
+                    .attr("d", path);
+            });
             
             d3.json(kyCounties, function(ky) {
                 
