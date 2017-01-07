@@ -4,16 +4,22 @@
 		<meta charset="utf-8">
 		<title>SYMAP</title>
         
-        <script src="lib/d3/d3.min.js"></script>
-        <script src="lib/topojson/topojson.js"></script>
-        <script src="lib/simple-statistics/src/simple_statistics.js"></script>
-        <script src="lib/turf/turf.min.js"></script>
-        <script src="lib/textures/textures.min.js"></script>
+<!--        <script src="lib/d3/d3.min.js"></script>-->
+        <script src="https://d3js.org/d3.v3.min.js"></script>
+<!--        <script src="lib/topojson/topojson.js"></script>-->
+        <script src="https://d3js.org/topojson.v2.min.js"></script>
+<!--        <script src="lib/simple-statistics/src/simple_statistics.js"></script>-->
+        <script src="https://unpkg.com/simple-statistics@2.2.0/dist/simple-statistics.min.js"></script>
+        <script type="text/javascript" src="lib/geostats/geostats.min.js"></script>
+<!--        <script src="lib/turf/turf.min.js"></script>-->
+        <script src="https://npmcdn.com/@turf/turf@3.5.1/turf.min.js"></script>
+<!--        <script src="lib/textures/textures.min.js"></script>-->
+        <script src="https://riccardoscalco.github.io/textures/textures.min.js"></script>
         
 		<style type="text/css">
             
             body {
-                background-color: #343434;
+                background-color: #050505;
             }
             
             svg .bg {
@@ -22,15 +28,15 @@
             
             svg .intBoundary {
                 stroke: #ffffff;
-                stroke-width: 0.5px;
+                stroke-width: 0.0px;
                 stroke-dasharray: 4,4;
                 fill:none;
                 opacity: 1;
             }
             
             svg .extBoundary {
-                stroke: #ffffff;
-                stroke-width: 1px;
+                stroke: #000000;
+                stroke-width: 10px;
 /*                stroke-dasharray: 2,2;*/
                 stroke-linejoin: round;
                 fill:none;
@@ -49,6 +55,7 @@
             }
 		</style>
 	</head>
+    
 	<body>
         
         <div id="map"></div>
@@ -60,7 +67,7 @@
                 h = 1080 - margin.top - margin.bottom;
             
             //SYMAP config
-            var numClasses = 7,
+            var numClasses = 5,
                 gridRes = 4, //3
                 fontSize = gridRes * 3,
                 symapMode = 'contour',
@@ -152,7 +159,7 @@
                     .append("path")
                     .style("fill", function(d) {
                         if (d.properties["STATE_ABBR"]=="KY") {
-                            return "#b22222";
+                            return "#050505";
                         } else { return t.url(); }
                     })
                     .style("fill-opacity", function(d) {
@@ -175,7 +182,7 @@
                 kyExtent = [kyExtent[0][0],kyExtent[0][1],kyExtent[1][0],kyExtent[1][1]];
                 
                 // GENERATE POINT GRID
-                var grid = turf.within(turf.pointGrid(kyExtent,gridRes,'kilometers'),turf.featurecollection(counties));
+                var grid = turf.within(turf.pointGrid(kyExtent,gridRes,'kilometers'),turf.featureCollection(counties));
                 
                 var valueArray = [];
                 var mapAttr; 
@@ -466,11 +473,17 @@
                         valueArray.push(d);
                     }
                 }
+                
+                values = new geostats(valueArray);
             
-                var breaks = ss.jenks(valueArray, numClasses);
+//                var breaks = ss.ckmeans(valueArray, numClasses);
+//                var breaks = ss.equalIntervalBreaks(valueArray, numClasses);
+                var breaks2 = values.getClassJenks(numClasses);
+//                console.log(breaks);
+                console.log(breaks2);
                 
                 var textShade = d3.scale.quantile()
-                    .domain(breaks)
+                    .domain(breaks2)
                     .range(textSymbology);
                 
                 features.append("g").attr("class","symapFill")
