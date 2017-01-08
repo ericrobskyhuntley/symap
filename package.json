@@ -1,0 +1,34 @@
+{
+  "name": "symap",
+  "version": "0.2.0",
+  "description": "Emulator of Howard Fisher's SYMAP.",
+  "main": "index.html",
+  "dependencies": {
+    "d3": "^3.5.17",
+    "geostats": "^1.5.0",
+    "textures": "^1.0.4",
+    "turf": "^3.0.14",
+    "topojson": "^2.2.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ericmhuntley/SYMAP.git"
+  },
+  "keywords": [
+    "symap",
+    "map",
+    "overprinting",
+    "idw",
+    "oxav"
+  ],
+  "author": "Eric Huntley",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ericmhuntley/SYMAP/issues"
+  },
+  "homepage": "https://github.com/ericmhuntley/SYMAP#readme"
+}
